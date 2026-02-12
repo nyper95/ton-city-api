@@ -18,10 +18,10 @@ app.get('/reward', async (req, res) => {
         const userId = req.query.userId;
         
         if (!userId) {
-            return res.status(400).json({ error: 'Falta userId' });
+            return res.json({ error: 'Falta userId' });
         }
 
-        console.log(`🎁 Usuario ${userId} vio anuncio`);
+        console.log(`Usuario: ${userId}`);
 
         const { data: usuario } = await supabase
             .from('game_data')
@@ -29,41 +29,27 @@ app.get('/reward', async (req, res) => {
             .eq('telegram_id', userId)
             .single();
 
-        let nuevosDiamantes;
+        let nuevos = 500;
         
-        if (!usuario) {
-            nuevosDiamantes = 500;
+        if (usuario) {
+            nuevos = (usuario.diamonds || 0) + 500;
+            await supabase
+                .from('game_data')
+                .update({ diamonds: nuevos })
+                .eq('telegram_id', userId);
+        } else {
             await supabase
                 .from('game_data')
                 .insert([{
                     telegram_id: userId,
-                    diamonds: nuevosDiamantes,
-                    lvl_tienda: 0,
-                    lvl_casino: 0,
-                    lvl_piscina: 0,
-                    lvl_parque: 0,
-                    lvl_diversion: 0,
-                    last_seen: new Date().toISOString()
+                    diamonds: 500
                 }]);
-        } else {
-            nuevosDiamantes = (usuario.diamonds || 0) + 500;
-            await supabase
-                .from('game_data')
-                .update({ 
-                    diamonds: nuevosDiamantes,
-                    last_seen: new Date().toISOString()
-                })
-                .eq('telegram_id', userId);
         }
 
-        res.json({
-            success: true,
-            message: '+500 diamantes',
-            diamonds: nuevosDiamantes
-        });
+        res.json({ success: true, diamonds: nuevos });
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.json({ error: error.message });
     }
 });
 

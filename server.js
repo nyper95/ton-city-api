@@ -2,15 +2,16 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// Koyeb usa el puerto 8000 por defecto, pero process.env.PORT lo detectará
+const PORT = process.env.PORT || 8000; 
 
 const supabase = createClient(
     'https://xkkifqxxglcuyruwkbih.supabase.co',
-    'sb_publishable_4vyBOxq_vIumZ4EcXyNlsw_XPbJ2iKE'
+    'TU_SERVICE_ROLE_KEY_AQUI' // Usa variables de entorno preferiblemente
 );
 
 app.get('/', (req, res) => {
-    res.send('✅ Ton City API funcionando');
+    res.send('✅ Ton City API funcionando correctamente');
 });
 
 app.get('/reward', async (req, res) => {
@@ -18,39 +19,43 @@ app.get('/reward', async (req, res) => {
         const userId = req.query.userId;
         
         if (!userId) {
-            return res.json({ error: 'Falta userId' });
+            return res.status(400).json({ error: 'Falta userId' });
         }
 
-        console.log(`Usuario: ${userId}`);
-
-        const { data: usuario } = await supabase
+        // Buscamos al usuario
+        const { data: usuario, error: fetchError } = await supabase
             .from('game_data')
             .select('diamonds')
             .eq('telegram_id', userId)
-            .single();
+            .maybeSingle(); // maybeSingle no da error si no encuentra nada
+
+        if (fetchError) throw fetchError;
 
         let nuevos = 500;
         
         if (usuario) {
             nuevos = (usuario.diamonds || 0) + 500;
-            await supabase
+            const { error: updError } = await supabase
                 .from('game_data')
                 .update({ diamonds: nuevos })
                 .eq('telegram_id', userId);
+            if (updError) throw updError;
         } else {
-            await supabase
+            const { error: insError } = await supabase
                 .from('game_data')
-                .insert([{
-                    telegram_id: userId,
-                    diamonds: 500
-                }]);
+                .insert([{ telegram_id: userId, diamonds: 500 }]);
+            if (insError) throw insError;
         }
 
         res.json({ success: true, diamonds: nuevos });
 
     } catch (error) {
-        res.json({ error: error.message });
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
-app.listen(PORT);
+// IMPORTANTE: 0.0.0.0 para que Koyeb pueda ver el puerto
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor iniciado en el puerto ${PORT}`);
+});
